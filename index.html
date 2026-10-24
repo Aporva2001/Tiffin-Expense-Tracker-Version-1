@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Tiffin Tracker</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tiffin">
+<meta name="theme-color" content="#EDE6D6">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%2333403F'/%3E%3Crect x='24' y='58' width='52' height='24' rx='6' stroke='%23D99A2B' stroke-width='6' fill='none'/%3E%3Crect x='24' y='38' width='52' height='20' rx='5' stroke='%23F3EFE4' stroke-width='6' fill='none'/%3E%3Crect x='24' y='20' width='52' height='18' rx='5' stroke='%2356704A' stroke-width='6' fill='none'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sand:#EDE6D6; --card:#F6F1E6;
+    --steel:#4E5D63; --steel-dark:#33403F;
+    --turmeric:#D99A2B; --turmeric-dark:#8A5F14;
+    --chutney:#56704A; --chutney-dark:#33452B;
+    --brk:#C2693A; --brk-dark:#7A3E17;
+    --ink:#2B2723; --ink-soft:#6B6459; --line:#D9D0BC; --rust:#B5482E;
+  }
+  *{box-sizing:border-box;}
+  [hidden]{display:none !important;}
+  html{background:var(--sand);}
+  body{
+    margin:0;background:var(--sand);
+    font-family:'Work Sans',sans-serif;color:var(--ink);
+    padding:calc(32px + env(safe-area-inset-top)) 16px calc(60px + env(safe-area-inset-bottom));
+    min-height:100vh;
+  }
+  .wrap{max-width:640px;margin:0 auto;}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:30px;margin:0 0 4px;letter-spacing:-0.01em;}
+  .tagline{font-size:13px;color:var(--ink-soft);margin:0 0 24px;}
+
+  .nav{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px;margin-bottom:12px;}
+  .nav button{background:none;border:1px solid var(--line);border-radius:8px;width:36px;height:36px;font-size:16px;cursor:pointer;color:var(--steel-dark);display:flex;align-items:center;justify-content:center;}
+  .nav button:hover{background:var(--sand);}
+  .month-label{font-family:'Fraunces',serif;font-weight:600;font-size:19px;}
+
+  .price-row{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:14px;flex-wrap:wrap;}
+  .price-label{font-size:13px;color:var(--ink-soft);font-weight:500;}
+  .price-label small{display:block;font-size:11px;font-weight:400;margin-top:1px;}
+  .price-input-wrap{display:flex;align-items:center;gap:4px;background:#fff;border:1.5px solid var(--line);border-radius:8px;padding:6px 10px;flex:1;min-width:100px;transition:border-color .12s,background .12s;}
+  .price-input-wrap.editing{border-color:var(--turmeric-dark);background:#FFFDF7;}
+  .price-currency{color:var(--ink-soft);font-size:15px;}
+  .price-input{border:none;outline:none;background:transparent;font-family:'Fraunces',serif;font-weight:600;font-size:16px;color:var(--ink);width:100%;}
+  .price-input:disabled{color:var(--ink);opacity:1;-webkit-text-fill-color:var(--ink);}
+  .price-edit-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--steel-dark);white-space:nowrap;font-family:inherit;}
+  .price-edit-btn:hover{background:var(--sand);}
+  .price-edit-btn.saving{background:var(--turmeric);border-color:var(--turmeric-dark);color:#3A2A05;}
+
+  .sync-badge{font-size:11px;padding:4px 10px;border-radius:20px;display:inline-flex;align-items:center;margin-bottom:14px;}
+  .sync-badge.on{background:#DCE8D6;color:var(--chutney-dark);}
+  .sync-badge.off{background:#F3DCD3;color:var(--rust);}
+
+  .legend{display:flex;gap:16px;font-size:12.5px;color:var(--ink-soft);margin-bottom:14px;align-items:center;flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .swatch{width:12px;height:12px;border-radius:3px;display:inline-block;}
+
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:22px;}
+  .dow{text-align:center;font-size:11px;color:var(--ink-soft);font-weight:500;padding-bottom:2px;letter-spacing:.03em;text-transform:uppercase;}
+  .cell{background:var(--card);border:1px solid var(--line);border-radius:10px;min-height:96px;padding:6px 6px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;}
+  .cell.empty{background:transparent;border:none;}
+  .daynum{font-size:11.5px;color:var(--ink-soft);align-self:flex-start;margin-left:2px;font-weight:500;}
+  .cell.today .daynum{color:var(--turmeric-dark);font-weight:600;}
+  .b-pill{
+    width:100%;height:22px;border-radius:11px;border:1.5px dashed var(--line);
+    background:#fff;color:var(--ink-soft);font-family:inherit;font-size:10.5px;font-weight:600;
+    cursor:pointer;padding:0;line-height:1;
+  }
+  .b-pill.on{background:var(--brk);border:1.5px solid var(--brk-dark);color:#fff;}
+  .toggles{display:flex;gap:5px;margin-top:auto;}
+  .tiffin-btn{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line);background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:transform .08s ease;}
+  .tiffin-btn:active,.b-pill:active{transform:scale(.92);}
+  .tiffin-btn svg{width:14px;height:14px;}
+  .tiffin-btn.lunch.on{background:var(--turmeric);border-color:var(--turmeric-dark);}
+  .tiffin-btn.dinner.on{background:var(--chutney);border-color:var(--chutney-dark);}
+
+  .summary{background:var(--steel-dark);border-radius:16px;padding:20px 22px;color:#F3EFE4;display:flex;flex-direction:column;gap:18px;}
+  .summary-top{display:flex;align-items:center;gap:20px;}
+  .summary-nums{display:grid;grid-template-columns:repeat(4,auto);gap:10px 26px;}
+  .stat .num{font-family:'Fraunces',serif;font-size:26px;font-weight:600;line-height:1;}
+  .stat .lbl{font-size:11.5px;color:#C9C2B0;margin-top:4px;}
+  .breakdown{border-top:1px solid rgba(243,239,228,.18);padding-top:14px;display:flex;flex-direction:column;gap:9px;}
+  .b-row{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;gap:10px;}
+  .b-row small{color:#C9C2B0;font-size:11.5px;margin-left:6px;}
+  .b-row .amt{font-weight:600;white-space:nowrap;}
+  .b-row.total{border-top:1px dashed rgba(243,239,228,.3);padding-top:10px;margin-top:2px;}
+  .b-row.total span:first-child{font-weight:600;}
+  .b-row.total .amt{font-family:'Fraunces',serif;font-size:22px;color:var(--turmeric);}
+  .pdf-btn{background:var(--turmeric);color:#3A2A05;border:none;border-radius:10px;padding:13px 16px;font-family:'Work Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;width:100%;}
+  .pdf-btn:hover{background:#E8AC44;}
+  .pdf-btn:disabled{opacity:.6;cursor:default;}
+  .footer-note{font-size:11.5px;color:var(--ink-soft);margin-top:14px;text-align:center;}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:20px;}
+  .topbar h1{margin-bottom:4px;}
+  .topbar .tagline{margin:0;}
+  .user-chip{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:24px;padding:4px 4px 4px 4px;flex-shrink:0;}
+  .user-chip img{width:30px;height:30px;border-radius:50%;object-fit:cover;background:var(--line);}
+  .user-chip .uname{font-size:12px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .signout{background:none;border:none;font-family:inherit;font-size:12px;color:var(--rust);font-weight:600;cursor:pointer;padding:6px 10px 6px 4px;}
+  .login{min-height:75vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:0 10px;}
+  .login .tagline{margin:0;max-width:300px;}
+  .google-btn{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 22px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;color:#3c4043;margin-top:10px;box-shadow:0 1px 2px rgba(0,0,0,.06);}
+  .google-btn:active{transform:scale(.98);}
+  .google-btn:disabled{opacity:.6;}
+  .login-err{color:var(--rust);font-size:13px;max-width:320px;line-height:1.45;}
+  .loading{text-align:center;color:var(--ink-soft);font-size:13px;padding:40px 0;}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--steel-dark);color:#F3EFE4;padding:12px 14px 12px 18px;border-radius:12px;display:flex;align-items:center;gap:14px;font-size:13.5px;box-shadow:0 6px 20px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:50;max-width:90vw;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+  .toast button{background:none;border:none;color:var(--turmeric);font-weight:600;font-size:13.5px;cursor:pointer;padding:4px 6px;white-space:nowrap;font-family:inherit;}
+
+  .overlay{position:fixed;inset:0;background:rgba(30,28,24,.45);display:none;align-items:flex-end;justify-content:center;z-index:60;}
+  .overlay.show{display:flex;}
+  .sheet{background:var(--card);width:100%;max-width:420px;border-radius:18px 18px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));}
+  .sheet h2{font-family:'Fraunces',serif;font-size:19px;margin:0 0 4px;}
+  .sheet p{margin:0 0 14px;font-size:12.5px;color:var(--ink-soft);}
+  .sheet .price-input-wrap{margin-bottom:6px;padding:10px 12px;border-color:var(--brk);}
+  .sheet .price-input{font-size:18px;}
+  .sheet-err{color:var(--rust);font-size:12px;min-height:16px;margin-bottom:10px;}
+  .sheet-actions{display:flex;gap:8px;}
+  .sheet-actions button{flex:1;padding:12px 8px;border-radius:10px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--steel-dark);}
+  .sheet-actions .primary{background:var(--brk);border-color:var(--brk-dark);color:#fff;flex:1.4;}
+  .sheet-actions .danger{color:var(--rust);}
+  @media (min-width:600px){.overlay{align-items:center;}.sheet{border-radius:18px;}}
+
+  @media (max-width:480px){
+    body{padding:calc(20px + env(safe-area-inset-top)) 10px calc(50px + env(safe-area-inset-bottom));}
+    h1{font-size:23px;}
+    .topbar{margin-bottom:14px;}
+    .user-chip .uname{display:none;}
+    .tagline{font-size:12px;margin-bottom:16px;}
+    .nav{padding:10px 12px;margin-bottom:10px;}
+    .month-label{font-size:16px;}
+    .price-row{padding:10px 12px;gap:8px;margin-bottom:10px;}
+    .price-label{font-size:12px;flex-basis:100%;}
+    .price-input-wrap{padding:6px 9px;}
+    .price-edit-btn{padding:8px 12px;font-size:11.5px;}
+    .sync-badge{font-size:10.5px;padding:4px 9px;margin-bottom:10px;}
+    .legend{gap:10px;font-size:11px;margin-bottom:10px;}
+    .grid{gap:4px;margin-bottom:16px;}
+    .dow{font-size:9.5px;}
+    .cell{min-height:80px;padding:4px 3px 5px;border-radius:8px;gap:3px;}
+    .daynum{font-size:10px;}
+    .b-pill{height:18px;font-size:8.5px;border-radius:9px;border-width:1.2px;}
+    .toggles{gap:3px;}
+    .tiffin-btn{width:18px;height:18px;border-width:1.2px;}
+    .tiffin-btn svg{width:10px;height:10px;}
+    .summary{padding:16px;border-radius:14px;gap:14px;}
+    .summary-top{flex-direction:column;align-items:flex-start;gap:12px;}
+    .summary-nums{width:100%;grid-template-columns:repeat(2,1fr);gap:12px;}
+    .stat .num{font-size:24px;}
+    .stat .lbl{font-size:10.5px;}
+    .toast{left:10px;right:10px;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateY(20px);max-width:none;}
+    .toast.show{transform:translateY(0);}
+  }
+  @media (max-width:360px){
+    .tiffin-btn{width:16px;height:16px;}
+    .tiffin-btn svg{width:9px;height:9px;}
+    .b-pill{font-size:8px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="authLoading" class="loading">Loading…</div>
+
+  <div id="loginScreen" class="login" hidden>
+    <h1>Tiffin tracker</h1>
+    <p class="tagline">Track breakfast, lunch and dinner deliveries and see what you owe each month.</p>
+    <button class="google-btn" id="googleBtn">
+      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+      Continue with Google
+    </button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+
+  <div id="app" hidden>
+  <div class="topbar">
+    <div>
+      <h1>Tiffin tracker</h1>
+      <p class="tagline">Mark each breakfast, lunch and dinner as it arrives.</p>
+    </div>
+    <div class="user-chip">
+      <img id="userPhoto" alt="" referrerpolicy="no-referrer">
+      <span class="uname" id="userName"></span>
+      <button class="signout" id="signOutBtn">Sign out</button>
+    </div>
+  </div>
+
+  <div class="nav">
+    <button id="prevBtn" aria-label="Previous month">&#8249;</button>
+    <div class="month-label" id="monthLabel">-</div>
+    <button id="nextBtn" aria-label="Next month">&#8250;</button>
+  </div>
+
+  <div class="price-row">
+    <span class="price-label">Price per lunch / dinner tiffin<small>Breakfast price is set per day</small></span>
+    <div class="price-input-wrap" id="priceInputWrap">
+      <span class="price-currency">₹</span>
+      <input type="number" id="priceInput" class="price-input" inputmode="decimal" step="0.01" min="0" placeholder="0" disabled>
+    </div>
+    <button class="price-edit-btn" id="priceEditBtn">Edit</button>
+  </div>
+
+  <div class="sync-badge" id="syncBadge">Checking cloud connection…</div>
+
+  <div class="legend">
+    <span><span class="swatch" style="background:var(--brk)"></span>Breakfast</span>
+    <span><span class="swatch" style="background:var(--turmeric)"></span>Lunch</span>
+    <span><span class="swatch" style="background:var(--chutney)"></span>Dinner</span>
+  </div>
+
+  <div id="calendarArea"><div class="loading">Loading…</div></div>
+  <div class="summary" id="summaryArea"></div>
+  <p class="footer-note">Saved automatically to your Google account. Add this page to your home screen for one-tap access.</p>
+
+  <div class="toast" id="toast"><span id="toastMsg"></span><button id="toastUndo">Undo</button></div>
+
+  <div class="overlay" id="sheetOverlay">
+    <div class="sheet" role="dialog" aria-modal="true">
+      <h2 id="sheetTitle">Breakfast</h2>
+      <p>Enter what you paid for breakfast on this day.</p>
+      <div class="price-input-wrap editing">
+        <span class="price-currency">₹</span>
+        <input type="number" id="sheetInput" class="price-input" inputmode="decimal" step="0.01" min="0" placeholder="0">
+      </div>
+      <div class="sheet-err" id="sheetErr"></div>
+      <div class="sheet-actions">
+        <button id="sheetCancel">Cancel</button>
+        <button id="sheetRemove" class="danger">Remove</button>
+        <button id="sheetSave" class="primary">Save</button>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script>
+const DOW = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// Firebase settings are injected at build time from environment variables
+// (see build.js). Do not hard-code values here.
+const firebaseConfig = {
+  apiKey: "%%FIREBASE_API_KEY%%",
+  authDomain: "%%FIREBASE_AUTH_DOMAIN%%",
+  projectId: "%%FIREBASE_PROJECT_ID%%",
+  storageBucket: "%%FIREBASE_STORAGE_BUCKET%%",
+  messagingSenderId: "%%FIREBASE_MESSAGING_SENDER_ID%%",
+  appId: "%%FIREBASE_APP_ID%%"
+};
+
+let db = null, auth = null, currentUser = null, firebaseReady = false;
+try{
+  if(firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("%%")){
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    firebaseReady = true;
+  }
+}catch(e){ console.error('Firebase init failed', e); }
+
+let current = new Date(); current.setDate(1);
+let currentKey = '', currentPriceKey = '';
+let currentPrice = 0;
+let lastData = {};
+let lastSummary = null;
+let renderToken = 0;
+
+function monthKey(d){ return 'tiffin:' + d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+function priceKey(d){ return 'tiffin-price:' + d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+
+function formatMoney(n){
+  return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: n % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 });
+}
+
+/* ---------- storage (per signed-in user) ---------- */
+function userDoc(){ return db.collection('users').doc(currentUser.uid); }
+function lk(key){ return currentUser.uid + ':' + key; }
+
+async function loadMonthData(key){
+  try{
+    const doc = await userDoc().collection('months').doc(key).get();
+    const data = doc.exists ? (doc.data().days || {}) : {};
+    localStorage.setItem(lk(key), JSON.stringify(data));
+    return data;
+  }catch(e){
+    console.error('Cloud load failed, using local cache', e);
+    try{ const raw = localStorage.getItem(lk(key)); return raw ? JSON.parse(raw) : {}; }catch(_){ return {}; }
+  }
+}
+async function saveMonthData(key, data){
+  localStorage.setItem(lk(key), JSON.stringify(data));
+  try{ await userDoc().collection('months').doc(key).set({ days: data, updatedAt: Date.now() }); }
+  catch(e){ console.error('Cloud save failed', e); alert('Saved on this device, but could not sync to the cloud. Check your connection.'); }
+}
+async function loadPrice(key){
+  try{
+    const doc = await userDoc().collection('prices').doc(key).get();
+    const price = doc.exists ? (doc.data().price || 0) : 0;
+    localStorage.setItem(lk(key), String(price));
+    return price;
+  }catch(e){
+    console.error('Cloud price load failed, using local cache', e);
+    const raw = localStorage.getItem(lk(key)); return raw ? Number(raw) : 0;
+  }
+}
+async function savePrice(key, price){
+  localStorage.setItem(lk(key), String(price));
+  try{ await userDoc().collection('prices').doc(key).set({ price: price, updatedAt: Date.now() }); }
+  catch(e){ console.error('Cloud price save failed', e); alert('Price saved on this device, but could not sync to the cloud.'); }
+}
+
+/* ---------- auth ---------- */
+function showLoginError(e){
+  const msgs = {
+    'auth/unauthorized-domain': 'This website address is not authorised yet. In Firebase, go to Authentication → Settings → Authorized domains and add this site\'s domain.',
+    'auth/operation-not-allowed': 'Google sign-in is not enabled. In Firebase, go to Authentication → Sign-in method and turn on Google.',
+    'auth/network-request-failed': 'Network problem. Check your connection and try again.'
+  };
+  document.getElementById('loginErr').textContent = msgs[e.code] || ('Sign-in failed (' + (e.code || e.message) + ').');
+}
+async function signIn(){
+  const btn = document.getElementById('googleBtn');
+  document.getElementById('loginErr').textContent = '';
+  btn.disabled = true;
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  try{
+    await auth.signInWithPopup(provider);
+  }catch(e){
+    if(e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment'){
+      try{ await auth.signInWithRedirect(provider); }catch(e2){ showLoginError(e2); }
+    }else if(e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request'){
+      showLoginError(e);
+    }
+  }
+  btn.disabled = false;
+}
+function initAuth(){
+  const loading = document.getElementById('authLoading');
+  const loginScreen = document.getElementById('loginScreen');
+  const appEl = document.getElementById('app');
+  if(!firebaseReady){
+    loading.hidden = true; loginScreen.hidden = false;
+    document.getElementById('googleBtn').disabled = true;
+    document.getElementById('loginErr').textContent = 'Firebase is not configured. Set the FIREBASE_* environment variables and rebuild.';
+    return;
+  }
+  auth = firebase.auth();
+  document.getElementById('googleBtn').addEventListener('click', signIn);
+  document.getElementById('signOutBtn').addEventListener('click', () => auth.signOut());
+  auth.getRedirectResult().catch(showLoginError);
+  auth.onAuthStateChanged(user => {
+    currentUser = user;
+    loading.hidden = true;
+    if(user){
+      loginScreen.hidden = true; appEl.hidden = false;
+      document.getElementById('userName').textContent = (user.displayName || user.email || '').split(' ')[0];
+      const ph = document.getElementById('userPhoto');
+      if(user.photoURL){ ph.src = user.photoURL; ph.hidden = false; } else { ph.hidden = true; }
+      current = new Date(); current.setDate(1);
+      render();
+    }else{
+      appEl.hidden = true; loginScreen.hidden = false;
+      lastData = {}; lastSummary = null; renderToken++;
+    }
+  });
+}
+
+/* ---------- helpers ---------- */
+function entryOf(data, day){
+  const e = data[String(day)] || {};
+  return { lunch: !!e.lunch, dinner: !!e.dinner, breakfast: !!e.breakfast, bPrice: Number(e.bPrice) || 0 };
+}
+function setEntry(data, day, e){ data[String(day)] = { lunch:e.lunch, dinner:e.dinner, breakfast:e.breakfast, bPrice:e.bPrice }; }
+
+function tiffinIconSvg(filled, color){
+  const c = filled ? '#fff' : color;
+  return '<svg viewBox="0 0 24 24" fill="none"><rect x="6" y="9" width="12" height="10" rx="1.5" stroke="'+c+'" stroke-width="1.6"/><rect x="6" y="5" width="12" height="4.5" rx="1.2" stroke="'+c+'" stroke-width="1.6"/><path d="M9 5V3.5C9 2.7 9.9 2 11 2H13C14.1 2 15 2.7 15 3.5V5" stroke="'+c+'" stroke-width="1.6" stroke-linecap="round"/></svg>';
+}
+
+function updateSyncBadge(){
+  const b = document.getElementById('syncBadge');
+  b.className = 'sync-badge on';
+  b.textContent = 'Synced to ' + (currentUser ? (currentUser.email || 'your account') : 'your account');
+}
+
+/* ---------- toast ---------- */
+let toastTimer = null;
+function showToast(message, onUndo){
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = message;
+  toast.classList.add('show');
+  const old = document.getElementById('toastUndo');
+  const fresh = old.cloneNode(true);
+  old.parentNode.replaceChild(fresh, old);
+  fresh.addEventListener('click', () => { clearTimeout(toastTimer); toast.classList.remove('show'); onUndo(); });
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 4500);
+}
+
+/* ---------- lunch/dinner price row (wired once) ---------- */
+function initPriceRow(){
+  const input = document.getElementById('priceInput');
+  const btn = document.getElementById('priceEditBtn');
+  const wrap = document.getElementById('priceInputWrap');
+  async function commit(){
+    const val = Math.max(0, parseFloat(input.value) || 0);
+    currentPrice = val;
+    input.value = val ? val : '';
+    input.disabled = true;
+    wrap.classList.remove('editing');
+    btn.textContent = 'Edit'; btn.classList.remove('saving');
+    await savePrice(currentPriceKey, val);
+    renderSummary();
+  }
+  btn.addEventListener('click', () => {
+    if(input.disabled){
+      input.disabled = false; wrap.classList.add('editing');
+      btn.textContent = 'Save'; btn.classList.add('saving');
+      input.focus(); input.select();
+    }else{ commit(); }
+  });
+  input.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); commit(); } });
+}
+
+/* ---------- breakfast sheet (wired once) ---------- */
+let sheetDay = null;
+function openSheet(day){
+  sheetDay = day;
+  const e = entryOf(lastData, day);
+  const monthName = MONTH_NAMES[current.getMonth()].slice(0,3);
+  document.getElementById('sheetTitle').textContent = 'Breakfast · ' + day + ' ' + monthName;
+  const remembered = Number(localStorage.getItem(lk('last-bprice'))) || '';
+  const input = document.getElementById('sheetInput');
+  input.value = e.breakfast ? e.bPrice : remembered;
+  document.getElementById('sheetErr').textContent = '';
+  document.getElementById('sheetRemove').style.display = e.breakfast ? '' : 'none';
+  document.getElementById('sheetOverlay').classList.add('show');
+  setTimeout(() => { input.focus(); input.select(); }, 60);
+}
+function closeSheet(){ document.getElementById('sheetOverlay').classList.remove('show'); sheetDay = null; }
+
+async function applyBreakfast(day, on, price){
+  const prev = entryOf(lastData, day);
+  const next = Object.assign({}, prev, { breakfast: on, bPrice: on ? price : 0 });
+  setEntry(lastData, day, next);
+  await saveMonthData(currentKey, lastData);
+  if(on) localStorage.setItem(lk('last-bprice'), String(price));
+  showToast(on ? 'Breakfast ' + formatMoney(price) + ' saved for day ' + day : 'Breakfast removed for day ' + day, async () => {
+    setEntry(lastData, day, prev);
+    await saveMonthData(currentKey, lastData);
+    render();
+  });
+  render();
+}
+
+function initSheet(){
+  const input = document.getElementById('sheetInput');
+  function save(){
+    const v = parseFloat(input.value);
+    if(isNaN(v) || v < 0){ document.getElementById('sheetErr').textContent = 'Enter a valid price.'; return; }
+    const day = sheetDay; closeSheet(); applyBreakfast(day, true, v);
+  }
+  document.getElementById('sheetSave').addEventListener('click', save);
+  document.getElementById('sheetCancel').addEventListener('click', closeSheet);
+  document.getElementById('sheetRemove').addEventListener('click', () => { const day = sheetDay; closeSheet(); applyBreakfast(day, false, 0); });
+  input.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); save(); } });
+  document.getElementById('sheetOverlay').addEventListener('click', e => { if(e.target.id === 'sheetOverlay') closeSheet(); });
+}
+
+/* ---------- render ---------- */
+async function render(){
+  const token = ++renderToken;
+  updateSyncBadge();
+  currentKey = monthKey(current);
+  currentPriceKey = priceKey(current);
+  document.getElementById('monthLabel').textContent = MONTH_NAMES[current.getMonth()] + ' ' + current.getFullYear();
+  const calArea = document.getElementById('calendarArea');
+  calArea.innerHTML = '<div class="loading">Loading…</div>';
+
+  const [price, data] = await Promise.all([loadPrice(currentPriceKey), loadMonthData(currentKey)]);
+  if(token !== renderToken) return;
+  currentPrice = price; lastData = data;
+
+  const pInput = document.getElementById('priceInput');
+  pInput.value = currentPrice ? currentPrice : '';
+  pInput.disabled = true;
+  document.getElementById('priceInputWrap').classList.remove('editing');
+  const pBtn = document.getElementById('priceEditBtn');
+  pBtn.textContent = 'Edit'; pBtn.classList.remove('saving');
+
+  const year = current.getFullYear(), month = current.getMonth();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const firstDow = new Date(year, month, 1).getDay();
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear()===year && today.getMonth()===month;
+
+  let html = '<div class="grid">';
+  DOW.forEach(d => html += '<div class="dow">'+d+'</div>');
+  for(let i=0;i<firstDow;i++) html += '<div class="cell empty"></div>';
+  for(let day=1; day<=daysInMonth; day++){
+    const e = entryOf(data, day);
+    const isToday = isCurrentMonth && today.getDate()===day;
+    html += '<div class="cell'+(isToday?' today':'')+'">' +
+      '<div class="daynum">'+day+'</div>' +
+      '<button class="b-pill'+(e.breakfast?' on':'')+'" data-day="'+day+'" aria-label="Breakfast day '+day+(e.breakfast?', '+e.bPrice+' rupees':', not marked')+'">'+(e.breakfast ? '₹'+e.bPrice : 'Bfast')+'</button>' +
+      '<div class="toggles">' +
+        '<button class="tiffin-btn lunch'+(e.lunch?' on':'')+'" data-day="'+day+'" data-meal="lunch" aria-label="Lunch day '+day+(e.lunch?', delivered':', not delivered')+'">'+tiffinIconSvg(e.lunch,'#D99A2B')+'</button>' +
+        '<button class="tiffin-btn dinner'+(e.dinner?' on':'')+'" data-day="'+day+'" data-meal="dinner" aria-label="Dinner day '+day+(e.dinner?', delivered':', not delivered')+'">'+tiffinIconSvg(e.dinner,'#56704A')+'</button>' +
+      '</div></div>';
+  }
+  html += '</div>';
+  calArea.innerHTML = html;
+
+  calArea.querySelectorAll('.b-pill').forEach(b => b.addEventListener('click', () => openSheet(Number(b.getAttribute('data-day')))));
+  calArea.querySelectorAll('.tiffin-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const day = Number(btn.getAttribute('data-day'));
+      const meal = btn.getAttribute('data-meal');
+      const prev = entryOf(lastData, day);
+      const next = Object.assign({}, prev); next[meal] = !prev[meal];
+      setEntry(lastData, day, next);
+      await saveMonthData(currentKey, lastData);
+      showToast((meal==='lunch'?'Lunch':'Dinner') + ' ' + (next[meal]?'marked':'unmarked') + ' for day ' + day, async () => {
+        setEntry(lastData, day, prev);
+        await saveMonthData(currentKey, lastData);
+        render();
+      });
+      render();
+    });
+  });
+
+  renderSummary();
+}
+
+function computeSummary(){
+  let b=0, l=0, d=0, bTotal=0;
+  for(const k in lastData){
+    const e = entryOf(lastData, k);
+    if(e.breakfast){ b++; bTotal += e.bPrice; }
+    if(e.lunch) l++;
+    if(e.dinner) d++;
+  }
+  const lAmt = l * currentPrice, dAmt = d * currentPrice;
+  return { b, l, d, bTotal, lAmt, dAmt, price: currentPrice, deliveries: b+l+d, grand: bTotal + lAmt + dAmt };
+}
+
+function renderSummary(){
+  const s = computeSummary();
+  lastSummary = s;
+  const icon = '<svg width="46" height="46" viewBox="0 0 24 24" fill="none"><rect x="5" y="14" width="14" height="6" rx="1.5" stroke="#D99A2B" stroke-width="1.6"/><rect x="5" y="9" width="14" height="5.5" rx="1.3" stroke="#F3EFE4" stroke-width="1.6"/><rect x="5" y="5" width="14" height="4.5" rx="1.2" stroke="#56704A" stroke-width="1.6"/><path d="M9.5 5V3.6C9.5 2.7 10.4 2 11.5 2H12.5C13.6 2 14.5 2.7 14.5 3.6V5" stroke="#F3EFE4" stroke-width="1.6" stroke-linecap="round"/></svg>';
+  document.getElementById('summaryArea').innerHTML =
+    '<div class="summary-top"><div>'+icon+'</div><div class="summary-nums">' +
+      '<div class="stat"><div class="num">'+s.deliveries+'</div><div class="lbl">Total deliveries</div></div>' +
+      '<div class="stat"><div class="num">'+s.b+'</div><div class="lbl">Breakfasts</div></div>' +
+      '<div class="stat"><div class="num">'+s.l+'</div><div class="lbl">Lunches</div></div>' +
+      '<div class="stat"><div class="num">'+s.d+'</div><div class="lbl">Dinners</div></div>' +
+    '</div></div>' +
+    '<div class="breakdown">' +
+      '<div class="b-row"><span>Breakfast<small>'+s.b+' day'+(s.b===1?'':'s')+', daily prices</small></span><span class="amt">'+formatMoney(s.bTotal)+'</span></div>' +
+      '<div class="b-row"><span>Lunch<small>'+s.l+' × '+formatMoney(s.price)+'</small></span><span class="amt">'+formatMoney(s.lAmt)+'</span></div>' +
+      '<div class="b-row"><span>Dinner<small>'+s.d+' × '+formatMoney(s.price)+'</small></span><span class="amt">'+formatMoney(s.dAmt)+'</span></div>' +
+      '<div class="b-row total"><span>Total expense</span><span class="amt">'+formatMoney(s.grand)+'</span></div>' +
+    '</div>' +
+    '<button class="pdf-btn" id="pdfBtn">Download PDF report</button>';
+  document.getElementById('pdfBtn').addEventListener('click', downloadPDF);
+}
+
+/* ---------- PDF ---------- */
+function downloadPDF(){
+  const s = lastSummary || computeSummary();
+  const data = lastData;
+  const btn = document.getElementById('pdfBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Preparing…'; }
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'pt', format:'a4' });
+    const year = current.getFullYear(), month = current.getMonth();
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+    const mx = 48, tableW = 440;
+    const pageH = doc.internal.pageSize.getHeight();
+    const rs = n => 'Rs. ' + n.toFixed(2);
+    let y = 56;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.setTextColor(43,39,35);
+    doc.text('Tiffin delivery report', mx, y); y += 22;
+    doc.setFont('helvetica','normal'); doc.setFontSize(13); doc.setTextColor(90,84,74);
+    doc.text(MONTH_NAMES[month] + ' ' + year, mx, y); y += 30;
+
+    const col = { day: mx, dow: mx+58, b: mx+120, l: mx+240, d: mx+340 };
+    function header(){
+      doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(78,93,99);
+      doc.text('DATE', col.day, y); doc.text('DAY', col.dow, y);
+      doc.text('BREAKFAST', col.b, y); doc.text('LUNCH', col.l, y); doc.text('DINNER', col.d, y);
+      y += 8; doc.setDrawColor(217,208,188); doc.line(mx, y, mx+tableW, y); y += 16;
+      doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    }
+    header();
+    for(let day=1; day<=daysInMonth; day++){
+      if(y > pageH - 70){ doc.addPage(); y = 56; header(); }
+      const e = entryOf(data, day);
+      doc.setTextColor(43,39,35);
+      doc.text(String(day).padStart(2,'0') + ' ' + MONTH_NAMES[month].slice(0,3), col.day, y);
+      doc.setTextColor(107,100,89);
+      doc.text(DOW[new Date(year, month, day).getDay()], col.dow, y);
+      if(e.breakfast){ doc.setTextColor(122,62,23); doc.text(rs(e.bPrice), col.b, y); }
+      else{ doc.setTextColor(190,185,175); doc.text('-', col.b, y); }
+      if(e.lunch){ doc.setTextColor(138,95,20); doc.text('Delivered', col.l, y); }
+      else{ doc.setTextColor(190,185,175); doc.text('-', col.l, y); }
+      if(e.dinner){ doc.setTextColor(51,69,43); doc.text('Delivered', col.d, y); }
+      else{ doc.setTextColor(190,185,175); doc.text('-', col.d, y); }
+      y += 18;
+    }
+
+    y += 12;
+    if(y > pageH - 280){ doc.addPage(); y = 56; }
+    doc.setDrawColor(217,208,188); doc.line(mx, y, mx+tableW, y); y += 26;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(43,39,35);
+    doc.text('Deliveries', mx, y); y += 20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(60,55,48);
+    doc.text('Breakfasts: ' + s.b, mx, y); y += 17;
+    doc.text('Lunches: ' + s.l, mx, y); y += 17;
+    doc.text('Dinners: ' + s.d, mx, y); y += 17;
+    doc.setFont('helvetica','bold'); doc.text('Total deliveries: ' + s.deliveries, mx, y); y += 28;
+
+    doc.setFontSize(13); doc.setTextColor(43,39,35);
+    doc.text('Expenses', mx, y); y += 20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(60,55,48);
+    const right = mx + tableW;
+    function line(label, amount){ doc.text(label, mx, y); doc.text(amount, right, y, { align:'right' }); y += 18; }
+    line('Breakfast (' + s.b + ' day' + (s.b===1?'':'s') + ', daily prices)', rs(s.bTotal));
+    line('Lunch (' + s.l + ' x ' + rs(s.price) + ')', rs(s.lAmt));
+    line('Dinner (' + s.d + ' x ' + rs(s.price) + ')', rs(s.dAmt));
+    y += 2; doc.setDrawColor(217,208,188); doc.line(mx, y, right, y); y += 22;
+    doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(43,39,35);
+    doc.text('Total expense', mx, y); doc.text(rs(s.grand), right, y, { align:'right' });
+
+    doc.save('tiffin-report-' + year + '-' + String(month+1).padStart(2,'0') + '.pdf');
+  }catch(err){
+    console.error(err); alert('Could not create the PDF. Check your internet connection and try again.');
+  }
+  if(btn){ btn.disabled = false; btn.textContent = 'Download PDF report'; }
+}
+
+document.getElementById('prevBtn').addEventListener('click', () => { current.setMonth(current.getMonth()-1); render(); });
+document.getElementById('nextBtn').addEventListener('click', () => { current.setMonth(current.getMonth()+1); render(); });
+initPriceRow(); initSheet(); initAuth();
+</script>
+</body>
+</html>
