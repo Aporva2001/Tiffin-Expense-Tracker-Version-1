@@ -92,6 +92,12 @@
   .b-row.total{border-top:1px dashed rgba(243,239,228,.3);padding-top:10px;margin-top:2px;}
   .b-row.total span:first-child{font-weight:600;}
   .b-row.total .amt{font-family:'Fraunces',serif;font-size:22px;color:var(--turmeric);}
+  .b-row.result{border-top:1px dashed rgba(243,239,228,.3);padding-top:10px;margin-top:2px;}
+  .b-row.result span:first-child{font-weight:600;}
+  .b-row.result .amt{font-family:'Fraunces',serif;font-size:22px;}
+  .b-row.result.pos .amt{color:#B7DDA0;}
+  .b-row.result.neg .amt{color:#F4A58C;}
+  .breakdown.settle h3{margin:0;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:#C9C2B0;font-weight:600;}
   .pdf-btn{background:var(--turmeric);color:#3A2A05;border:none;border-radius:10px;padding:13px 16px;font-family:'Work Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;width:100%;}
   .pdf-btn:hover{background:#E8AC44;}
   .pdf-btn:disabled{opacity:.6;cursor:default;}
@@ -208,6 +214,15 @@
     <button class="price-edit-btn" id="priceEditBtn">Edit</button>
   </div>
 
+  <div class="price-row">
+    <span class="price-label">Deposit for this month<small id="carryNote">Paid at the start of the month</small></span>
+    <div class="price-input-wrap" id="depositInputWrap">
+      <span class="price-currency">₹</span>
+      <input type="number" id="depositInput" class="price-input" inputmode="decimal" step="0.01" min="0" placeholder="0" disabled>
+    </div>
+    <button class="price-edit-btn" id="depositEditBtn">Edit</button>
+  </div>
+
   <div class="sync-badge" id="syncBadge">Checking cloud connection…</div>
 
   <div class="legend">
@@ -270,14 +285,17 @@ try{
 }catch(e){ console.error('Firebase init failed', e); }
 
 let current = new Date(); current.setDate(1);
-let currentKey = '', currentPriceKey = '';
+let currentYM = '';
+let store = { months:{}, prices:{}, deposits:{} };
+let storeLoaded = false;
 let currentPrice = 0;
 let lastData = {};
 let lastSummary = null;
 let renderToken = 0;
 
-function monthKey(d){ return 'tiffin:' + d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
-function priceKey(d){ return 'tiffin-price:' + d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+function ymOf(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+function ymAdd(ym, n){ const [y,m] = ym.split('-').map(Number); const t = y*12 + (m-1) + n; return Math.floor(t/12) + '-' + String((t%12)+1).padStart(2,'0'); }
+function ymName(ym){ return MONTH_NAMES[Number(ym.split('-')[1])-1]; }
 
 function formatMoney(n){
   return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: n % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 });
@@ -286,39 +304,34 @@ function formatMoney(n){
 /* ---------- storage (per signed-in user) ---------- */
 function userDoc(){ return db.collection('users').doc(currentUser.uid); }
 function lk(key){ return currentUser.uid + ':' + key; }
+function stripId(id){ return id.replace(/^tiffin(-price|-deposit)?:/, ''); }
+function persistCache(){ try{ localStorage.setItem(lk('all'), JSON.stringify(store)); }catch(e){} }
 
-async function loadMonthData(key){
+async function loadAll(){
   try{
-    const doc = await userDoc().collection('months').doc(key).get();
-    const data = doc.exists ? (doc.data().days || {}) : {};
-    localStorage.setItem(lk(key), JSON.stringify(data));
-    return data;
+    const u = userDoc();
+    const [m, p, d] = await Promise.all([
+      u.collection('months').get(), u.collection('prices').get(), u.collection('deposits').get()
+    ]);
+    const st = { months:{}, prices:{}, deposits:{} };
+    m.forEach(doc => { st.months[stripId(doc.id)] = doc.data().days || {}; });
+    p.forEach(doc => { st.prices[stripId(doc.id)] = Number(doc.data().price) || 0; });
+    d.forEach(doc => { st.deposits[stripId(doc.id)] = Number(doc.data().amount) || 0; });
+    localStorage.setItem(lk('all'), JSON.stringify(st));
+    return st;
   }catch(e){
     console.error('Cloud load failed, using local cache', e);
-    try{ const raw = localStorage.getItem(lk(key)); return raw ? JSON.parse(raw) : {}; }catch(_){ return {}; }
+    try{ const raw = localStorage.getItem(lk('all')); if(raw) return JSON.parse(raw); }catch(_){}
+    return { months:{}, prices:{}, deposits:{} };
   }
 }
-async function saveMonthData(key, data){
-  localStorage.setItem(lk(key), JSON.stringify(data));
-  try{ await userDoc().collection('months').doc(key).set({ days: data, updatedAt: Date.now() }); }
+async function cloudSet(collection, id, payload){
+  try{ await userDoc().collection(collection).doc(id).set(Object.assign(payload, { updatedAt: Date.now() })); }
   catch(e){ console.error('Cloud save failed', e); alert('Saved on this device, but could not sync to the cloud. Check your connection.'); }
 }
-async function loadPrice(key){
-  try{
-    const doc = await userDoc().collection('prices').doc(key).get();
-    const price = doc.exists ? (doc.data().price || 0) : 0;
-    localStorage.setItem(lk(key), String(price));
-    return price;
-  }catch(e){
-    console.error('Cloud price load failed, using local cache', e);
-    const raw = localStorage.getItem(lk(key)); return raw ? Number(raw) : 0;
-  }
-}
-async function savePrice(key, price){
-  localStorage.setItem(lk(key), String(price));
-  try{ await userDoc().collection('prices').doc(key).set({ price: price, updatedAt: Date.now() }); }
-  catch(e){ console.error('Cloud price save failed', e); alert('Price saved on this device, but could not sync to the cloud.'); }
-}
+async function saveMonthData(ym, days){ store.months[ym] = days; persistCache(); await cloudSet('months', 'tiffin:' + ym, { days: days }); }
+async function savePrice(ym, price){ store.prices[ym] = price; persistCache(); await cloudSet('prices', 'tiffin-price:' + ym, { price: price }); }
+async function saveDeposit(ym, amount){ store.deposits[ym] = amount; persistCache(); await cloudSet('deposits', 'tiffin-deposit:' + ym, { amount: amount }); }
 
 /* ---------- auth ---------- */
 function showLoginError(e){
@@ -369,10 +382,11 @@ function initAuth(){
       const ph = document.getElementById('userPhoto');
       if(user.photoURL){ ph.src = user.photoURL; ph.hidden = false; } else { ph.hidden = true; }
       current = new Date(); current.setDate(1);
+      storeLoaded = false;
       render();
     }else{
       appEl.hidden = true; loginScreen.hidden = false;
-      lastData = {}; lastSummary = null; renderToken++;
+      lastData = {}; lastSummary = null; renderToken++; store = { months:{}, prices:{}, deposits:{} }; storeLoaded = false;
     }
   });
 }
@@ -409,20 +423,17 @@ function showToast(message, onUndo){
   toastTimer = setTimeout(() => toast.classList.remove('show'), 4500);
 }
 
-/* ---------- lunch/dinner price row (wired once) ---------- */
-function initPriceRow(){
-  const input = document.getElementById('priceInput');
-  const btn = document.getElementById('priceEditBtn');
-  const wrap = document.getElementById('priceInputWrap');
+/* ---------- editable money fields (wired once) ---------- */
+function initEditable(inputId, wrapId, btnId, onCommit){
+  const input = document.getElementById(inputId);
+  const wrap = document.getElementById(wrapId);
+  const btn = document.getElementById(btnId);
   async function commit(){
     const val = Math.max(0, parseFloat(input.value) || 0);
-    currentPrice = val;
     input.value = val ? val : '';
-    input.disabled = true;
-    wrap.classList.remove('editing');
+    input.disabled = true; wrap.classList.remove('editing');
     btn.textContent = 'Edit'; btn.classList.remove('saving');
-    await savePrice(currentPriceKey, val);
-    renderSummary();
+    await onCommit(val);
   }
   btn.addEventListener('click', () => {
     if(input.disabled){
@@ -432,6 +443,17 @@ function initPriceRow(){
     }else{ commit(); }
   });
   input.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); commit(); } });
+}
+function setEditable(inputId, wrapId, btnId, value){
+  const input = document.getElementById(inputId);
+  input.value = value ? value : ''; input.disabled = true;
+  document.getElementById(wrapId).classList.remove('editing');
+  const btn = document.getElementById(btnId);
+  btn.textContent = 'Edit'; btn.classList.remove('saving');
+}
+function initPriceRow(){
+  initEditable('priceInput','priceInputWrap','priceEditBtn', async v => { currentPrice = v; await savePrice(currentYM, v); renderSummary(); });
+  initEditable('depositInput','depositInputWrap','depositEditBtn', async v => { await saveDeposit(currentYM, v); renderSummary(); });
 }
 
 /* ---------- breakfast sheet (wired once) ---------- */
@@ -455,11 +477,11 @@ async function applyBreakfast(day, on, price){
   const prev = entryOf(lastData, day);
   const next = Object.assign({}, prev, { breakfast: on, bPrice: on ? price : 0 });
   setEntry(lastData, day, next);
-  await saveMonthData(currentKey, lastData);
+  await saveMonthData(currentYM, lastData);
   if(on) localStorage.setItem(lk('last-bprice'), String(price));
   showToast(on ? 'Breakfast ' + formatMoney(price) + ' saved for day ' + day : 'Breakfast removed for day ' + day, async () => {
     setEntry(lastData, day, prev);
-    await saveMonthData(currentKey, lastData);
+    await saveMonthData(currentYM, lastData);
     render();
   });
   render();
@@ -483,23 +505,22 @@ function initSheet(){
 async function render(){
   const token = ++renderToken;
   updateSyncBadge();
-  currentKey = monthKey(current);
-  currentPriceKey = priceKey(current);
+  currentYM = ymOf(current);
   document.getElementById('monthLabel').textContent = MONTH_NAMES[current.getMonth()] + ' ' + current.getFullYear();
   const calArea = document.getElementById('calendarArea');
-  calArea.innerHTML = '<div class="loading">Loading…</div>';
+  if(!storeLoaded){
+    calArea.innerHTML = '<div class="loading">Loading…</div>';
+    const st = await loadAll();
+    if(token !== renderToken) return;
+    store = st; storeLoaded = true;
+  }
+  if(!store.months[currentYM]) store.months[currentYM] = {};
+  lastData = store.months[currentYM];
+  currentPrice = store.prices[currentYM] || 0;
+  setEditable('priceInput','priceInputWrap','priceEditBtn', currentPrice);
+  setEditable('depositInput','depositInputWrap','depositEditBtn', store.deposits[currentYM] || 0);
 
-  const [price, data] = await Promise.all([loadPrice(currentPriceKey), loadMonthData(currentKey)]);
-  if(token !== renderToken) return;
-  currentPrice = price; lastData = data;
-
-  const pInput = document.getElementById('priceInput');
-  pInput.value = currentPrice ? currentPrice : '';
-  pInput.disabled = true;
-  document.getElementById('priceInputWrap').classList.remove('editing');
-  const pBtn = document.getElementById('priceEditBtn');
-  pBtn.textContent = 'Edit'; pBtn.classList.remove('saving');
-
+  const data = lastData;
   const year = current.getFullYear(), month = current.getMonth();
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const firstDow = new Date(year, month, 1).getDay();
@@ -531,10 +552,10 @@ async function render(){
       const prev = entryOf(lastData, day);
       const next = Object.assign({}, prev); next[meal] = !prev[meal];
       setEntry(lastData, day, next);
-      await saveMonthData(currentKey, lastData);
+      await saveMonthData(currentYM, lastData);
       showToast((meal==='lunch'?'Lunch':'Dinner') + ' ' + (next[meal]?'marked':'unmarked') + ' for day ' + day, async () => {
         setEntry(lastData, day, prev);
-        await saveMonthData(currentKey, lastData);
+        await saveMonthData(currentYM, lastData);
         render();
       });
       render();
@@ -544,22 +565,59 @@ async function render(){
   renderSummary();
 }
 
-function computeSummary(){
+/* ---------- calculations ---------- */
+function monthTotals(ym){
+  const days = store.months[ym] || {};
+  const price = store.prices[ym] || 0;
   let b=0, l=0, d=0, bTotal=0;
-  for(const k in lastData){
-    const e = entryOf(lastData, k);
+  for(const k in days){
+    const e = entryOf(days, k);
     if(e.breakfast){ b++; bTotal += e.bPrice; }
     if(e.lunch) l++;
     if(e.dinner) d++;
   }
-  const lAmt = l * currentPrice, dAmt = d * currentPrice;
-  return { b, l, d, bTotal, lAmt, dAmt, price: currentPrice, deliveries: b+l+d, grand: bTotal + lAmt + dAmt };
+  const lAmt = l * price, dAmt = d * price;
+  return { b, l, d, bTotal, lAmt, dAmt, price, deliveries: b+l+d, expense: bTotal + lAmt + dAmt };
+}
+function hasContent(ym){
+  if((store.deposits[ym]||0) > 0 || (store.prices[ym]||0) > 0) return true;
+  const days = store.months[ym] || {};
+  for(const k in days){ const e = entryOf(days, k); if(e.lunch || e.dinner || e.breakfast) return true; }
+  return false;
+}
+const round2 = n => Math.round(n * 100) / 100;
+// Leftover money carries forward; a shortfall is paid that month and is NOT carried.
+function settlement(ym){
+  const all = new Set([].concat(Object.keys(store.months), Object.keys(store.prices), Object.keys(store.deposits)));
+  const used = Array.from(all).filter(hasContent).sort();
+  let carry = 0;
+  if(used.length){
+    let m = used[0];
+    while(m < ym){
+      const bal = round2(carry + (store.deposits[m]||0) - monthTotals(m).expense);
+      carry = Math.max(0, bal);
+      m = ymAdd(m, 1);
+    }
+  }
+  const deposit = store.deposits[ym] || 0;
+  const expense = monthTotals(ym).expense;
+  const available = round2(carry + deposit);
+  const balance = round2(available - expense);
+  return { opening: carry, deposit, available, expense, balance, carryOut: Math.max(0, balance), due: Math.max(0, -balance) };
+}
+function computeSummary(){
+  const t = monthTotals(currentYM);
+  return Object.assign({}, t, { grand: t.expense, st: settlement(currentYM) });
 }
 
 function renderSummary(){
   const s = computeSummary();
+  const st = s.st;
   lastSummary = s;
+  const prevName = ymName(ymAdd(currentYM, -1));
+  document.getElementById('carryNote').textContent = st.opening > 0 ? 'Includes ' + formatMoney(st.opening) + ' carried over from ' + prevName : 'Paid at the start of the month';
   const icon = '<svg width="46" height="46" viewBox="0 0 24 24" fill="none"><rect x="5" y="14" width="14" height="6" rx="1.5" stroke="#D99A2B" stroke-width="1.6"/><rect x="5" y="9" width="14" height="5.5" rx="1.3" stroke="#F3EFE4" stroke-width="1.6"/><rect x="5" y="5" width="14" height="4.5" rx="1.2" stroke="#56704A" stroke-width="1.6"/><path d="M9.5 5V3.6C9.5 2.7 10.4 2 11.5 2H12.5C13.6 2 14.5 2.7 14.5 3.6V5" stroke="#F3EFE4" stroke-width="1.6" stroke-linecap="round"/></svg>';
+  const positive = st.balance >= 0;
   document.getElementById('summaryArea').innerHTML =
     '<div class="summary-top"><div>'+icon+'</div><div class="summary-nums">' +
       '<div class="stat"><div class="num">'+s.deliveries+'</div><div class="lbl">Total deliveries</div></div>' +
@@ -572,6 +630,13 @@ function renderSummary(){
       '<div class="b-row"><span>Lunch<small>'+s.l+' × '+formatMoney(s.price)+'</small></span><span class="amt">'+formatMoney(s.lAmt)+'</span></div>' +
       '<div class="b-row"><span>Dinner<small>'+s.d+' × '+formatMoney(s.price)+'</small></span><span class="amt">'+formatMoney(s.dAmt)+'</span></div>' +
       '<div class="b-row total"><span>Total expense</span><span class="amt">'+formatMoney(s.grand)+'</span></div>' +
+    '</div>' +
+    '<div class="breakdown settle">' +
+      '<h3>Deposit &amp; settlement</h3>' +
+      '<div class="b-row"><span>Carried over<small>from '+prevName+'</small></span><span class="amt">'+formatMoney(st.opening)+'</span></div>' +
+      '<div class="b-row"><span>Deposit this month</span><span class="amt">'+formatMoney(st.deposit)+'</span></div>' +
+      '<div class="b-row"><span>Less: total expense</span><span class="amt">− '+formatMoney(st.expense)+'</span></div>' +
+      '<div class="b-row result '+(positive?'pos':'neg')+'"><span>'+(positive ? 'Balance carried to next month' : 'Additional amount to pay')+(positive?'':'<small>shortfall is not carried forward</small>')+'</span><span class="amt">'+formatMoney(positive ? st.carryOut : st.due)+'</span></div>' +
     '</div>' +
     '<button class="pdf-btn" id="pdfBtn">Download PDF report</button>';
   document.getElementById('pdfBtn').addEventListener('click', downloadPDF);
@@ -624,7 +689,7 @@ function downloadPDF(){
     }
 
     y += 12;
-    if(y > pageH - 280){ doc.addPage(); y = 56; }
+    if(y > pageH - 440){ doc.addPage(); y = 56; }
     doc.setDrawColor(217,208,188); doc.line(mx, y, mx+tableW, y); y += 26;
 
     doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(43,39,35);
@@ -646,6 +711,26 @@ function downloadPDF(){
     y += 2; doc.setDrawColor(217,208,188); doc.line(mx, y, right, y); y += 22;
     doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(43,39,35);
     doc.text('Total expense', mx, y); doc.text(rs(s.grand), right, y, { align:'right' });
+    y += 34;
+
+    const st = s.st;
+    const prevName = ymName(ymAdd(currentYM, -1));
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(43,39,35);
+    doc.text('Deposit & settlement', mx, y); y += 20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(60,55,48);
+    line('Carried over from ' + prevName, rs(st.opening));
+    line('Deposit this month', rs(st.deposit));
+    line('Total available', rs(st.available));
+    line('Less: total expense', '- ' + rs(st.expense));
+    y += 2; doc.setDrawColor(217,208,188); doc.line(mx, y, right, y); y += 22;
+    doc.setFont('helvetica','bold'); doc.setFontSize(14);
+    if(st.balance >= 0){
+      doc.setTextColor(51,69,43);
+      doc.text('Balance carried to next month', mx, y); doc.text(rs(st.carryOut), right, y, { align:'right' });
+    }else{
+      doc.setTextColor(181,72,46);
+      doc.text('Additional amount to pay', mx, y); doc.text(rs(st.due), right, y, { align:'right' });
+    }
 
     doc.save('tiffin-report-' + year + '-' + String(month+1).padStart(2,'0') + '.pdf');
   }catch(err){
